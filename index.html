@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ふたりのウェディングラン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#2a2340;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;font-family:"Hiragino Maru Gothic ProN","Yu Gothic",sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#bfe3ff;max-width:100vw;max-height:calc(100vh - 120px);width:auto;height:auto;aspect-ratio:16/9;width:min(100vw,calc((100vh - 120px)*16/9))}
+  #pad{display:flex;justify-content:space-between;width:min(100vw,640px);padding:10px 14px;box-sizing:border-box;gap:10px}
+  .btn{flex:0 0 74px;height:74px;border-radius:50%;background:rgba(255,255,255,.16);border:3px solid rgba(255,255,255,.55);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center}
+  .btn.on{background:rgba(255,255,255,.4)}
+  #jump{flex-basis:96px;height:96px;margin-top:-22px;background:rgba(255,170,200,.35);border-color:#ffc6da;font-size:20px;font-weight:bold}
+  .lr{display:flex;gap:12px}
+  @media (orientation:landscape){#hint{display:none}}
+  @media (min-width:900px) and (hover:hover){#pad{display:none}canvas{max-height:100vh;width:min(100vw,calc(100vh*16/9))}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="1280" height="720"></canvas>
+  <div id="hint" style="color:#ffc6da;font-size:13px;margin:6px 0">スマホは横向きにすると大きく遊べます</div>
+  <div id="pad">
+    <div class="lr"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
+    <div class="btn" id="jump">JUMP</div>
+  </div>
+</div>
+<script>
+// ===== ここを書き換えるだけで、ふたり専用になります =====
+const CONFIG = {
+  groom: "ケンタ",
+  bride: "ミサキ",
+  date: "2027.05.22",
+  goalMessage: "来てくれて ありがとう！",
+  stageName: "ふたりの出会いの街",
+  // コースの途中に立つ「思い出の看板」(ふたりのなれそめ)
+  memories: [
+    "2019 大学のサークルで出会う",
+    "2021 はじめての旅行は北海道",
+    "2026 夜景の前でプロポーズ"
+  ]
+};
+// =====================================================
+
+const cv=document.getElementById('c'),mctx=cv.getContext('2d');
+const off=document.createElement('canvas');off.width=320;off.height=180;const ctx=off.getContext('2d');
+ctx.imageSmoothingEnabled=false;mctx.imageSmoothingEnabled=false;let textQ=[];
+const W=320,H=180,G=0.32,TILE=16,S=4;
+
+// ---- ドット絵(オリジナル) ----
+const PAL={'.':null,'k':'#2b2233','w':'#ffffff','s':'#ffd9b8','h':'#5a3a2a','H':'#3b2a22','g':'#3a3f66','G':'#262a47','t':'#e8e8f2','p':'#ff8fb3','P':'#e05a8a','y':'#ffd86b','b':'#7bc6ff','r':'#e8455a','v':'#c9b6ff','n':'#6b4f3a','e':'#4caf6a','E':'#2f7d48','o':'#ff9f4a','c':'#fff3e3','m':'#cfc6e8'};
+function spr(rows){const c=document.createElement('canvas');c.width=rows[0].length;c.height=rows.length;const x=c.getContext('2d');rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(PAL[ch]){x.fillStyle=PAL[ch];x.fillRect(i,j,1,1)}}));return c}
+// 新郎(タキシード)
+const groomA=spr([
+"....HHHH....",
+"...HHHHHH...",
+"...HssssH...",
+"...skssks...",
+"...ssssss...",
+"....ssss....",
+"...gwwwwg...",
+"..ggwPPwgg..",
+"..gggwwggg..",
+"..sgggggggs.",
+"...gggggg...",
+"...gg..gg...",
+"...gg..gg...",
+"...GG..GG...",
+"..kkk..kkk..",
+"............"]);
+const groomB=spr([
+"....HHHH....",
+"...HHHHHH...",
+"...HssssH...",
+"...skssks...",
+"...ssssss...",
+"....ssss....",
+"...gwwwwg...",
+"..ggwPPwgg..",
+"..gggwwggg..",
+"..sgggggggs.",
+"...gggggg...",
+"...gg.gg....",
+"..gg...gg...",
+"..GG....GG..",
+".kkk....kkk.",
+"............"]);
+// 新婦(ドレス)
+const brideA=spr([
+"...hhhhh....",
+"..hhhhhhhv..",
+"..hssssshv..",
+"..sksssksv..",
+"..ssssssvv..",
+"...sssss.v..",
+"...wwwww....",
+"..wwwpwww...",
+"..swwwwws...",
+"...wwwww....",
+"..wwwwwww...",
+"..wwwwwww...",
+".wwwwwwwww..",
+".wwwwwwwww..",
+"wwwwwwwwwww.",
+"..m.....m..."]);
+const brideB=spr([
+"...hhhhh....",
+"..hhhhhhhv..",
+"..hssssshv..",
+"..sksssksv..",
+"..ssssssvv..",
+"...sssss.v..",
+"...wwwww....",
+"..wwwpwww...",
+"..swwwwws...",
+"...wwwww....",
+"..wwwwwww...",
+"..wwwwwww...",
+"..wwwwwwww..",
+".wwwwwwwwww.",
+".wwwwwwwwww.",
+"...m...m...."]);
+const heart=spr([".pp.pp.","pPppppp","pppppPp","ppppppp",".ppppp.","..ppp..","...p..."]);
+const ring=spr(["..yyy..",".y...y.","y.....y","y.....y","y.....y",".y...y.","..yyy.."]);
+const ringG=spr(["...b...","..bwb..","..yyy..",".y...y.","y.....y","y.....y",".yyyyy."]);
+const crow=spr(["....kk...",".kkkkkko.","kkkwkkk..","kkkkkkk..",".kkkkk...","..k..k..."]);
+const crow2=spr(["k......k.",".kk..kko.","..kwkkk..","..kkkkk..","...kkk...","...k.k..."]);
+const cork=spr(["..ccc..",".cnnnc.","cnnnnnc","cnnnnnc",".cnnnc.","..ccc.."]);
+// ブロック
+const grass=spr(["eeeeeeeeeeeeeeee","eEeeeEeeeeEeeeEe","EnnEnnnEnnnnEnnn","nnnnnnnnnnnnnnnn","nnnonnnnnnnnonnn","nnnnnnnnnnnnnnnn","nnnnnnonnnnnnnnn","nnnnnnnnnnnnnnnn","nnonnnnnnnnnnonn","nnnnnnnnnnnnnnnn","nnnnnnnnonnnnnnn","nnnnnnnnnnnnnnnn","nonnnnnnnnnnnnnn","nnnnnnnnnnnonnnn","nnnnnnnnnnnnnnnn","nnnnnonnnnnnnnnn"]);
+const dirt=spr(Array(16).fill(0).map((_,j)=>[...Array(16)].map((_,i)=>((i*5+j*11)%37===0)?'o':'n').join('')));
+const cake=spr(["......pp......","......ww......","....wwwwww....","....wpwpwp....","....wwwwww....","..wwwwwwwwww..","..wpwwpwwpww..","..wwwwwwwwww..","wwwwwwwwwwwwww","wpwwwpwwwpwwwp","wwwwwwwwwwwwww","..mmmmmmmmmm.."]);
+const sign=spr(["..cccccccccccc..",".cmmmmmmmmmmmmc.",".cmmmmmmmmmmmmc.",".cmmmmmmmmmmmmc.","..cccccccccccc..",".......nn.......",".......nn.......",".......nn.......",".......nn......."]);
+const cloudS=spr(["....wwww......","..wwwwwwww....",".wwwwwwwwwww..","wwwwwwwwwwwwww",".wwwwwwwwwwww."]);
+
+// ---- ステージ ----
+// '#'=地面 'B'=浮き足場 'h'=ハート 'r'=指輪 'c'=カラス 'o'=コルク 'G'=ゴール
+const MAP=[
+"                                                                                                                                        ",
+"                                                                                                                                        ",
+"                                                                                                                                        ",
+"                       h h h                                    r                         h h                                           ",
+"                      BBBBBBB              h                   BBB          c           BBBBB                    r                      ",
+"         h                           BBB  BBB        c                                             h h        BBBBB                     ",
+"        BBB      r                                                     h h h                      BBBBB                     h h  G      ",
+"                BBB       c    o              h h         o         BBBBBBBBB      o                          o        BBBBBBB          ",
+"##########################  ######  ##################  #####################  ##########  ##############################  #############",
+"##########################  ######  ##################  #####################  ##########  ##############################  #############",
+"##########################  ######  ##################  #####################  ##########  ##############################  #############"
+];
+const MW=MAP[0].length,MH=MAP.length,OY=H-MH*TILE;
+function solid(tx,ty){if(ty<0||ty>=MH||tx<0||tx>=MW)return false;const ch=MAP[ty][tx];return ch==='#'||ch==='B'}
+
+let items,enemies,goal,player,partner,cam,score,state,timeLeft,hearts,rings,particles,best=0,frame=0,clearT=0;
+function reset(){
+  items=[];enemies=[];particles=[];
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const ch=MAP[y][x],px=x*TILE,py=OY+y*TILE;
+    if(ch==='h')items.push({t:'h',x:px+4,y:py+4,w:8,h:8,a:0});
+    if(ch==='r')items.push({t:'r',x:px+4,y:py+4,w:8,h:8,a:0});
+    if(ch==='c')enemies.push({t:'c',x:px,y:py,w:9,h:6,vx:-0.5,base:py,ph:Math.random()*6});
+    if(ch==='o')enemies.push({t:'o',x:px+4,y:py+10,w:7,h:6,vx:-0.7,vy:0});
+    if(ch==='G')goal={x:px,y:OY+8*TILE-12*1-0,w:14,h:12};}
+  goal.y=OY+8*TILE-12;
+  player={x:24,y:OY+5*TILE,w:9,h:15,vx:0,vy:0,on:false,dir:1,inv:0,walk:0};
+  partner={x:8,y:player.y,dir:1};
+  cam=0;score=0;hearts=0;rings=0;timeLeft=90*60;state='title';
+}
+reset();
+
+// ---- 入力 ----
+const key={l:0,r:0,j:0};let jumpPressed=false;
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')key.l=1;if(e.key==='ArrowRight'||e.key==='d')key.r=1;if(e.key===' '||e.key==='ArrowUp'||e.key==='w'){if(!key.j)jumpPressed=true;key.j=1;e.preventDefault()}});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')key.l=0;if(e.key==='ArrowRight'||e.key==='d')key.r=0;if(e.key===' '||e.key==='ArrowUp'||e.key==='w')key.j=0});
+function bind(id,k){const el=document.getElementById(id);const on=e=>{e.preventDefault();if(k==='j'&&!key.j)jumpPressed=true;key[k]=1;el.classList.add('on')};const off=e=>{e.preventDefault();key[k]=0;el.classList.remove('on')};el.addEventListener('touchstart',on,{passive:false});el.addEventListener('touchend',off,{passive:false});el.addEventListener('touchcancel',off,{passive:false});el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);el.addEventListener('mouseleave',off)}
+bind('left','l');bind('right','r');bind('jump','j');
+cv.addEventListener('touchstart',e=>{e.preventDefault();jumpPressed=true},{passive:false});
+cv.addEventListener('mousedown',()=>{jumpPressed=true});
+
+// ---- 当たり判定・移動 ----
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function moveX(o){o.x+=o.vx;const t=Math.floor((o.y-OY)/TILE),bt=Math.floor((o.y+o.h-1-OY)/TILE);
+  if(o.vx>0){const tx=Math.floor((o.x+o.w)/TILE);for(let y=t;y<=bt;y++)if(solid(tx,y)){o.x=tx*TILE-o.w;o.vx=0;return true}}
+  if(o.vx<0){const tx=Math.floor(o.x/TILE);for(let y=t;y<=bt;y++)if(solid(tx,y)){o.x=(tx+1)*TILE;o.vx=0;return true}}return false}
+function moveY(o){o.y+=o.vy;o.on=false;const l=Math.floor(o.x/TILE),r=Math.floor((o.x+o.w-1)/TILE);
+  if(o.vy>0){const ty=Math.floor((o.y+o.h-OY)/TILE);for(let x=l;x<=r;x++)if(solid(x,ty)){o.y=OY+ty*TILE-o.h;o.vy=0;o.on=true;return}}
+  if(o.vy<0){const ty=Math.floor((o.y-OY)/TILE);for(let x=l;x<=r;x++)if(solid(x,ty)){o.y=OY+(ty+1)*TILE;o.vy=0;return}}}
+function burst(x,y,col,n){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*2.4,vy:-Math.random()*2.4-0.5,l:30+Math.random()*20,c:col})}
+
+function update(){
+  frame++;
+  if(state==='title'||state==='over'||state==='clear'){if(jumpPressed){if(state!=='title')reset();state='play'}jumpPressed=false;if(state==='clear')clearT++;updParticles();return}
+  timeLeft--; if(timeLeft<=0){state='over';return}
+  const p=player;
+  const acc=0.28,max=1.9;
+  if(key.l){p.vx-=acc;p.dir=-1}else if(key.r){p.vx+=acc;p.dir=1}else p.vx*=0.75;
+  p.vx=Math.max(-max,Math.min(max,p.vx));if(Math.abs(p.vx)<0.05)p.vx=0;
+  if(jumpPressed&&p.on){p.vy=-5.3;burst(p.x+4,p.y+p.h,'#ffffff',4)}
+  jumpPressed=false;
+  if(!key.j&&p.vy<-2)p.vy=-2; // 小ジャンプ
+  p.vy=Math.min(p.vy+G,6);
+  moveX(p);moveY(p);if(p.x<0)p.x=0;
+  if(p.on&&Math.abs(p.vx)>0.2)p.walk++;
+  if(p.inv>0)p.inv--;
+  if(p.y>H+20){damage(true)}
+  // 新郎がついてくる
+  const tx=p.x-14*p.dir;partner.x+=(tx-partner.x)*0.12;partner.y+=(p.y-partner.y)*0.25;partner.dir=p.dir;
+  // アイテム
+  for(const it of items){if(it.a)continue;if(hit(p,it)){it.a=1;if(it.t==='h'){hearts++;score+=100;burst(it.x+3,it.y+3,'#ff8fb3',8)}else{rings++;score+=500;burst(it.x+3,it.y+3,'#ffd86b',14)}}}
+  // てき
+  for(const e of enemies){if(e.dead){continue}
+    if(e.t==='c'){e.x+=e.vx;e.ph+=0.07;e.y=e.base+Math.sin(e.ph)*10;if(e.x<cam-40)e.x+=W+80}
+    else{e.vy=Math.min(e.vy+G,5);const ox=e.vx;if(moveX(e))e.vx=-ox;moveY(e);}
+    if(hit(p,e)){
+      if(p.vy>0&&p.y+p.h-e.y<8){e.dead=1;p.vy=-4;score+=200;burst(e.x+4,e.y+3,'#ffffff',10)}
+      else damage(false)}}
+  // ゴール
+  if(goal&&p.x+p.w>goal.x){state='clear';clearT=0;score+=Math.floor(timeLeft/60)*10;best=Math.max(best,score);burst(goal.x+7,goal.y,'#ff8fb3',30);burst(goal.x+7,goal.y,'#ffd86b',30)}
+  cam+=((p.x-W*0.38)-cam)*0.15;cam=Math.max(0,Math.min(cam,MW*TILE-W));
+  updParticles();
+}
+function damage(fall){const p=player;if(p.inv>0&&!fall)return;score=Math.max(0,score-300);burst(p.x+4,p.y+6,'#ff8fb3',10);
+  if(fall){p.x=Math.max(16,p.x-48);p.vy=0;while(!solid(Math.floor((p.x+4)/TILE),8)||!solid(Math.floor((p.x+p.w)/TILE),8))p.x-=8;p.y=OY+8*TILE-p.h}
+  p.inv=90;if(!fall)p.vy=-3;if(fall){partner.x=p.x-14;partner.y=p.y}}
+function updParticles(){for(const q of particles){q.x+=q.vx;q.y+=q.vy;q.vy+=0.12;q.l--}particles=particles.filter(q=>q.l>0)}
+
+// ---- 描画 ----
+const FONT='"DotGothic16","MS Gothic",monospace';
+function fpx(size){return size>=14?64:size>=10?48:32}
+function text(s,x,y,col='#fff',size=8,al='left',sh='#2b2233'){textQ.push([s,x,y,col,size,al,sh])}
+function flushText(){for(const [s,x,y,col,size,al,sh] of textQ){mctx.font=`${fpx(size)}px ${FONT}`;mctx.textAlign=al;mctx.textBaseline='alphabetic';const X=Math.round(x*S),Y=Math.round(y*S);if(sh&&sh!=='rgba(0,0,0,0)'){mctx.fillStyle=sh;mctx.fillText(s,X+4,Y+4)}mctx.fillStyle=col;mctx.fillText(s,X,Y)}textQ=[]}
+function textW(s,size){mctx.font=`${fpx(size)}px ${FONT}`;return mctx.measureText(s).width/S}
+function bg(){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#b9d8ff');g.addColorStop(1,'#ffe6f0');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<6;i++){const x=((i*90-cam*0.2)%(W+100)+W+100)%(W+100)-60;ctx.drawImage(cloudS,x,14+(i%3)*14)}
+  // 遠景のチャペルと丘
+  ctx.fillStyle='#d9c9f2';for(let i=0;i<8;i++){const x=((i*70-cam*0.4)%(W+140)+W+140)%(W+140)-70;ctx.beginPath();ctx.ellipse(x+35,OY+8*TILE+6,50,26,0,Math.PI,0);ctx.fill()}
+  const cx=((900-cam*0.4)%(W+200)+W+200)%(W+200)-100;ctx.fillStyle='#f4eefc';ctx.fillRect(cx,OY+8*TILE-60,30,40);ctx.beginPath();ctx.moveTo(cx-3,OY+8*TILE-60);ctx.lineTo(cx+15,OY+8*TILE-80);ctx.lineTo(cx+33,OY+8*TILE-60);ctx.fill();ctx.fillStyle='#c9b6ff';ctx.fillRect(cx+12,OY+8*TILE-42,6,10);ctx.fillStyle='#ffd86b';ctx.fillRect(cx+14,OY+8*TILE-92,2,10);ctx.fillRect(cx+11,OY+8*TILE-88,8,2);
+}
+function draw(){
+  textQ=[];
+  bg();
+  ctx.save();ctx.translate(-Math.round(cam),0);
+  const x0=Math.floor(cam/TILE),x1=x0+W/TILE+2;
+  for(let y=0;y<MH;y++)for(let x=x0;x<x1&&x<MW;x++){const ch=MAP[y][x];if(ch==='#')ctx.drawImage(y>0&&MAP[y-1][x]==='#'?dirt:grass,x*TILE,OY+y*TILE);if(ch==='B'){ctx.drawImage(grass,0,0,16,8,x*TILE,OY+y*TILE,16,8)}}
+  // 道ばたの花
+  for(let x=x0;x<x1&&x<MW;x++){if(MAP[8][x]==='#'&&MAP[7][x]===' '&&(x*13)%5===0){ctx.fillStyle=(x%2)?'#ff8fb3':'#ffffff';ctx.fillRect(x*TILE+6,OY+8*TILE-3,3,3);ctx.fillStyle='#2f7d48';ctx.fillRect(x*TILE+7,OY+8*TILE-1,1,1)}}
+  CONFIG.memories.forEach((m,i)=>{const sx=[30,62,98][i]*TILE,sy=OY+8*TILE-9;ctx.drawImage(sign,sx,sy);const near=Math.abs(player.x-sx)<60;if(near){const w=textW(m,7)+8;ctx.fillStyle='rgba(255,255,255,.92)';ctx.fillRect(Math.round(sx+8-w/2),sy-17,Math.round(w),13);ctx.fillStyle='#e05a8a';ctx.fillRect(Math.round(sx+8-w/2),sy-17,Math.round(w),1);ctx.fillRect(Math.round(sx+8-w/2),sy-5,Math.round(w),1);text(m,sx+8-Math.round(cam),sy-7.5,'#e05a8a',7,'center','rgba(0,0,0,0)')}});
+  for(const it of items){if(it.a)continue;const bob=Math.sin(frame*0.1+it.x)*1.5;ctx.drawImage(it.t==='h'?heart:ringG,Math.round(it.x),Math.round(it.y+bob))}
+  for(const e of enemies){if(e.dead)continue;if(e.t==='c'){ctx.drawImage((frame>>3)%2?crow:crow2,Math.round(e.x),Math.round(e.y))}else{ctx.drawImage(cork,Math.round(e.x),Math.round(e.y))}}
+  if(goal){ctx.drawImage(cake,goal.x,goal.y);ctx.fillStyle='#ffd86b';if((frame>>4)%2)ctx.fillRect(goal.x+6,goal.y-3,2,2);text('GOAL',goal.x+7-Math.round(cam),goal.y-6,'#ffffff',7,'center')}
+  // ふたり
+  const p=player,sp=(!p.on)?brideB:((p.walk>>3)%2?brideA:brideB);
+  const gs=(Math.abs(partner.x-p.x)>16||!p.on)?((frame>>3)%2?groomA:groomB):groomA;
+  drawFlip(gs,partner.x-1,partner.y,partner.dir);
+  if(!(p.inv>0&&(frame>>2)%2))drawFlip(sp,p.x-1,p.y,p.dir);
+  for(const q of particles){ctx.fillStyle=q.c;ctx.fillRect(Math.round(q.x),Math.round(q.y),2,2)}
+  ctx.restore();
+  // HUD
+  ctx.fillStyle='rgba(43,34,51,.55)';ctx.fillRect(0,0,W,13);
+  ctx.drawImage(heart,4,3);text('×'+hearts,13,10,'#fff',8);
+  ctx.drawImage(ring,40,3);text('×'+rings,49,10,'#fff',8);
+  text('SCORE '+score,W/2,10,'#ffd86b',8,'center');
+  text('TIME '+Math.ceil(timeLeft/60),W-4,10,'#fff',8,'right');
+  if(state==='title')overlayTitle();if(state==='clear')overlayClear();if(state==='over')overlayOver();
+  mctx.imageSmoothingEnabled=false;mctx.drawImage(off,0,0,W*S,H*S);flushText();
+}
+function drawFlip(img,x,y,dir){x=Math.round(x);y=Math.round(y);if(dir<0){ctx.save();ctx.translate(x+img.width,y);ctx.scale(-1,1);ctx.drawImage(img,0,0);ctx.restore()}else ctx.drawImage(img,x,y)}
+function panel(h){ctx.fillStyle='rgba(43,34,51,.86)';ctx.fillRect(30,Math.round((H-h)/2),W-60,h);const y=Math.round((H-h)/2);ctx.fillStyle='#ffc6da';ctx.fillRect(30,y,W-60,1);ctx.fillRect(30,y+h-1,W-60,1);ctx.fillRect(30,y,1,h);ctx.fillRect(W-31,y,1,h)}
+function overlayTitle(){panel(112);const y0=(H-112)/2;
+  text(CONFIG.groom+' ♥ '+CONFIG.bride,W/2,y0+20,'#ffc6da',10,'center');
+  text('ふたりのウェディングラン',W/2,y0+40,'#ffffff',14,'center');
+  text(CONFIG.stageName+' から チャペルへ！',W/2,y0+58,'#ffd86b',8,'center');
+  text('ハート と ゆびわ を あつめて ゴールの ケーキへ',W/2,y0+74,'#fff',7,'center');
+  text('カラス と コルク は ふんで たおせる',W/2,y0+86,'#fff',7,'center');
+  if((frame>>4)%2)text('▶ タップ / スペースで スタート',W/2,y0+104,'#ffffff',8,'center');
+  ctx.drawImage(groomA,52,y0+10);ctx.drawImage(brideA,W-66,y0+10)}
+function overlayClear(){panel(118);const y0=(H-118)/2;ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(groomA,40,y0+40,24,32);ctx.drawImage(brideA,W-64,y0+40,24,32);ctx.drawImage(heart,W/2-7,y0+58-60,14,14);ctx.restore();
+  text('CONGRATULATIONS!',W/2,y0+20,'#ffd86b',12,'center');
+  text(CONFIG.goalMessage,W/2,y0+38,'#ffffff',10,'center');
+  text(CONFIG.groom+' & '+CONFIG.bride+'  '+CONFIG.date,W/2,y0+54,'#ffc6da',8,'center');
+  text('SCORE  '+score,W/2,y0+74,'#ffffff',12,'center');
+  text('ハート '+hearts+'   ゆびわ '+rings,W/2,y0+90,'#fff',8,'center');
+  if(clearT>60&&(frame>>4)%2)text('▶ もう一回あそぶ',W/2,y0+108,'#fff',8,'center');
+  if(frame%6===0)burst(cam+Math.random()*W,10,Math.random()<.5?'#ff8fb3':'#ffd86b',2)}
+function overlayOver(){panel(70);const y0=(H-70)/2;text('TIME UP!',W/2,y0+22,'#ffd86b',12,'center');text('SCORE '+score,W/2,y0+42,'#fff',10,'center');if((frame>>4)%2)text('▶ もう一回',W/2,y0+60,'#fff',8,'center')}
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+loop();
+// テスト用
+window.__game={get state(){return state},get score(){return score},get player(){return player},set state(v){state=v},key,press(){jumpPressed=true}};
+</script>
+</body>
+</html>
